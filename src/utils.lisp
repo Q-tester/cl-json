@@ -63,52 +63,49 @@
                  `(funcall ,key-handler key)))))))
 
 (defmacro json-bind ((&rest varlist) json-source &body body)
-  (let-gensyms (decoder validator value-handler key-handler pass)
-    (destructuring-bind (vars-tmp vars paths)
-	(loop for slot-definition in varlist
-	      with symbol-for-macros and symbol-for-bind and symbol-for-parsing
-	      do (if (listp slot-definition)
-		     (destructuring-bind (sym location)
-			 slot-definition
-		       (setf symbol-for-macros (gensym (symbol-name sym))
-			     symbol-for-bind sym
-			     symbol-for-parsing location))
-		     (setf symbol-for-macros (gensym (symbol-name slot-definition))
-			   symbol-for-parsing slot-definition
-			   symbol-for-bind slot-definition))
-	      collect symbol-for-macros into vars-tmp
-	      collect symbol-for-bind into vars
-	      collect symbol-for-parsing into paths
-	      finally (return (list vars-tmp vars paths)))
-      `(let (,@vars-tmp (,pass (constantly t)))
-         (let ((,validator
-		 (custom-decoder
-		  :beginning-of-object ,pass :object-key ,pass
-		  :object-value ,pass :end-of-object ,pass
-		  :beginning-of-array ,pass :array-member ,pass
-		  :end-of-array ,pass :beginning-of-string ,pass
-		  :string-char ,pass :end-of-string ,pass
-		  :internal-decoder 'decode-json))
-               (,decoder (current-decoder))
-               (,key-handler *object-key-handler*)
-               (,value-handler *object-value-handler*))
-           (declare (ignorable ,decoder ,key-handler ,value-handler))
-           ,(if (null vars)
-                `(decode-json-from-source ,json-source ,validator)
-                `(bind-custom-vars
-                     (,@(json-bind-level-customizations
-                         (loop for path in paths for var-tmp in vars-tmp
-			       collect (cons var-tmp (symbol-name path)))
-                         nil decoder validator
-                         key-handler value-handler pass)
-                      :aggregate-scope
-		      (union *aggregate-scope-variables*
-			     '(*object-key-handler*
-			       *object-value-handler*
-			       *internal-decoder*)))
-                   (decode-json-from-source ,json-source))))
-         (let ,(mapcar #'list vars vars-tmp)
-           ,@body)))))
+  (let-gensyms (decoder validator value-handler key-handler pass) 
+    (loop
+      for slot-definition in varlist
+      for list-p = (listp slot-definition)
+      for sym = (if list-p (first slot-definition)
+		    slot-definition)
+      collect (gensym (symbol-name sym))
+	into vars-tmp
+      collect sym into vars
+      collect (if list-p (second slot-definition)
+		  slot-definition)
+	into paths
+      finally
+	 (return
+	   `(let (,@vars-tmp (,pass (constantly t)))
+	      (let ((,validator
+		      (custom-decoder
+		       :beginning-of-object ,pass :object-key ,pass
+		       :object-value ,pass :end-of-object ,pass
+		       :beginning-of-array ,pass :array-member ,pass
+		       :end-of-array ,pass :beginning-of-string ,pass
+		       :string-char ,pass :end-of-string ,pass
+		       :internal-decoder 'decode-json))
+		    (,decoder (current-decoder))
+		    (,key-handler *object-key-handler*)
+		    (,value-handler *object-value-handler*))
+		(declare (ignorable ,decoder ,key-handler ,value-handler))
+		,(if (null vars)
+		     `(decode-json-from-source ,json-source ,validator)
+		     `(bind-custom-vars
+			  (,@(json-bind-level-customizations
+			      (loop for path in paths for var-tmp in vars-tmp
+				    collect (cons var-tmp (symbol-name path)))
+			      nil decoder validator
+			      key-handler value-handler pass)
+			   :aggregate-scope
+			   (union *aggregate-scope-variables*
+				  '(*object-key-handler*
+				    *object-value-handler*
+				    *internal-decoder*)))
+			(decode-json-from-source ,json-source))))
+	      (let ,(mapcar #'list vars vars-tmp)
+		,@body))))))
 
 ;;; Old code:
 
