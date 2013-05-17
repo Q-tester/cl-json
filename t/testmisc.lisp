@@ -19,6 +19,20 @@
     (is-false sub-obj.missing-property)
     (is (string= sub-obj.even-deeper-obj.some-stuff "Guten Tag"))))
 
+(test test-json-bind-advanced-with-setting-symbol
+  (let ((sub-obj.even-deeper-obj.some-stuff 11))
+    (json-bind (hello-world
+		sub-obj.property
+		(missing-property sub-obj.missing-property)
+		(some-stuff sub-obj.even-deeper-obj.some-stuff))
+	       "{\"helloWorld\":100,\"subObj\":{\"property\":20,\"evenDeeperObj\":{\"someStuff\":\"Guten Tag\"}}}"
+      (is (= hello-world 100))
+      (is (= sub-obj.property 20))
+      (is-false missing-property)
+      (is (string= some-stuff "Guten Tag"))
+      ;; leak test
+      (is (= sub-obj.even-deeper-obj.some-stuff 11)))))
+
 (test json-bind-in-bind-bug
   ;; A problem with json-bind. TODO: Fix it, but leave this testcase
   (let* ((input-json-rpc "{\"method\":\"rc\",\"id\":\"1\",\"params\":
